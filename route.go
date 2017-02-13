@@ -34,15 +34,17 @@ func (r Route) Transport(wg *sync.WaitGroup) {
 	}
 
 	for _, file := range files {
-		if file.IsDir() || file.Name() == ".endpoint" {
-			continue
-		}
 
 		filepath := path.Join(r.Path, file.Name())
 
 		logger = logger.WithFields(log.Fields{
 			"file": file.Name(),
 		})
+
+		if file.IsDir() {
+			logger.Warning("Directory found in files folder, this is not rocket surgery people!")
+			continue
+		}
 
 		logger.Info("Found a new payload, shuttling")
 

@@ -11,7 +11,7 @@ import (
 
 func main() {
 	var base string
-	flag.StringVar(&base, "base", "REQUIRED", "Base path")
+	flag.StringVar(&base, "base", "REQUIRED", "Base path, the files are expected to be in [base]/[user]/files/")
 	flag.Parse()
 
 	if base == "REQUIRED" {

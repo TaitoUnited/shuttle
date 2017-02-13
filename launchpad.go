@@ -30,7 +30,7 @@ func (p Launchpad) DiscoverRoutes(base string) ([]Route, error) {
 			}
 
 			route := Route{
-				Path:     path.Join(base, file.Name()),
+				Path:     path.Join(base, file.Name(), "files"),
 				Endpoint: strings.TrimSpace(string(endpoint)),
 			}
 
