@@ -5,6 +5,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/TaitoUnited/fsnotify"
@@ -15,12 +16,15 @@ type MissionControl struct {
 	Watcher   *fsnotify.Watcher
 	Launchpad Launchpad
 	Routes    []Route
+	Enroute   *sync.WaitGroup
 }
 
-func NewMissionControl(retry int) MissionControl {
+func NewMissionControl(retry int, shuttlesPath string) MissionControl {
+	launchpad := NewLaunchpad(retry, shuttlesPath)
+
 	return MissionControl{
 		Watcher:   nil,
-		Launchpad: NewLaunchpad(retry),
+		Launchpad: launchpad,
 		Routes:    []Route{},
 	}
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"os"
 	"sync"
@@ -12,17 +13,58 @@ import (
 type Launchpad struct {
 	Queue         chan Shuttle
 	Retry         int
+	Enroute       *sync.WaitGroup
+	ShuttlesPath  string
 	Shuttles      []Shuttle
 	ShuttlesMutex *sync.Mutex
 }
 
-func NewLaunchpad(retry int) Launchpad {
+func NewLaunchpad(retry int, shuttlesPath string) Launchpad {
 	return Launchpad{
 		Queue:         make(chan Shuttle, 100),
 		Retry:         retry,
+		Enroute:       &sync.WaitGroup{},
+		ShuttlesPath:  shuttlesPath,
 		Shuttles:      []Shuttle{},
 		ShuttlesMutex: &sync.Mutex{},
 	}
+}
+
+func (lp *Launchpad) LoadShuttles() (int, error) {
+	shuttles := []Shuttle{}
+
+	file, err := os.Open(lp.ShuttlesPath)
+	if err != nil {
+		return 0, err
+	}
+
+	defer file.Close()
+
+	decoder := gob.NewDecoder(file)
+	if err := decoder.Decode(&shuttles); err != nil {
+		return 0, err
+	}
+
+	for _, shuttle := range shuttles {
+		lp.AddShuttle(shuttle)
+	}
+
+	return len(shuttles), nil
+}
+
+// Unexported since it relies on Launchpad.ShuttlesMutex being locked
+func (lp *Launchpad) writeShuttles() error {
+	file, err := os.Create(lp.ShuttlesPath)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	encoder := gob.NewEncoder(file)
+	encoder.Encode(lp.Shuttles)
+
+	return nil
 }
 
 func (lp *Launchpad) HasShuttle(shuttle Shuttle) bool {
@@ -49,6 +91,12 @@ func (lp *Launchpad) AddShuttle(shuttle Shuttle) {
 	defer lp.ShuttlesMutex.Unlock()
 
 	lp.Shuttles = append(lp.Shuttles, shuttle)
+	if err := lp.writeShuttles(); err != nil {
+		log.WithFields(log.Fields{
+			"err": err,
+		}).Error("Failed to write shuttles, lets hope we don't crash...")
+	}
+
 	lp.Queue <- shuttle
 }
 
@@ -64,6 +112,11 @@ func (lp *Launchpad) RemoveShuttle(shuttle Shuttle) {
 	}
 
 	lp.Shuttles = shuttles
+	if err := lp.writeShuttles(); err != nil {
+		log.WithFields(log.Fields{
+			"err": err,
+		}).Error("Failed to write shuttles, lets hope we don't crash...")
+	}
 }
 
 func (lp *Launchpad) LaunchShuttles() {
@@ -87,7 +140,10 @@ func (lp *Launchpad) LaunchShuttles() {
 			continue
 		}
 
+		lp.Enroute.Add(1)
 		transportErr := shuttle.Route.Transport(shuttle.Filename)
+		lp.Enroute.Done()
+
 		if statErr != nil || transportErr != nil {
 			logger.WithFields(log.Fields{
 				"transportErr": transportErr,
