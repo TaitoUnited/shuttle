@@ -2,9 +2,10 @@ package main
 
 import (
 	"flag"
+	"os"
+	"os/signal"
 	"path"
-	"sync"
-	"time"
+	"syscall"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -25,28 +26,32 @@ func main() {
 		"base": base,
 	})
 
-	logger.Info("Discovering shuttle routes")
-
-	launchpad := Launchpad{}
-	routes, err := launchpad.DiscoverRoutes(base)
-	if err != nil {
+	launchpad := NewLaunchpad()
+	if err := launchpad.Reload(base); err != nil {
 		logger.WithFields(log.Fields{
 			"err": err,
-		}).Fatal("Failed to discover routes")
+		}).Fatal("Failed to start up launchpad")
 	}
 
-	logger.WithFields(log.Fields{
-		"len": len(routes),
-	}).Info("Shuttle routes discovered, watching for payloads")
+	// Launch N threads that handle the uploads
+	for i := 0; i < 5; i++ {
+		go launchpad.LaunchShuttles()
+	}
 
-	for {
-		wg := &sync.WaitGroup{}
-		for _, route := range routes {
-			wg.Add(1)
-			go route.Transport(wg)
+	logger.Info("Ready and processing")
+
+	// Handle a SIGHUP as reloading routes
+	signalChannel := make(chan os.Signal, 1)
+	signal.Notify(signalChannel, syscall.SIGHUP)
+	for _ = range signalChannel {
+		logger.Info("Reloading routes")
+
+		if err := launchpad.Reload(base); err != nil {
+			logger.WithFields(log.Fields{
+				"err": err,
+			}).Fatal("Failed to reload routes")
 		}
 
-		wg.Wait()
-		time.Sleep(10 * time.Second)
+		logger.Info("Routes reloaded")
 	}
 }
