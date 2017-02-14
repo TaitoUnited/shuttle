@@ -12,7 +12,11 @@ import (
 
 func main() {
 	var base string
+	var retry, workers int
+
 	flag.StringVar(&base, "base", "REQUIRED", "Base path, the files are expected to be in [base]/[user]/files/")
+	flag.IntVar(&retry, "retry", 5, "Retry delay for error-inducing shuttles")
+	flag.IntVar(&workers, "workers", 5, "Threads that are handling uploads, i.e. the amount of concurrent uploads")
 	flag.Parse()
 
 	if base == "REQUIRED" {
@@ -26,16 +30,16 @@ func main() {
 		"base": base,
 	})
 
-	launchpad := NewLaunchpad()
-	if err := launchpad.Reload(base); err != nil {
+	missionControl := NewMissionControl(retry)
+	if err := missionControl.Reload(base); err != nil {
 		logger.WithFields(log.Fields{
 			"err": err,
 		}).Fatal("Failed to start up launchpad")
 	}
 
 	// Launch N threads that handle the uploads
-	for i := 0; i < 5; i++ {
-		go launchpad.LaunchShuttles()
+	for i := 0; i < workers; i++ {
+		go missionControl.Launchpad.LaunchShuttles()
 	}
 
 	logger.Info("Ready and processing")
@@ -46,7 +50,7 @@ func main() {
 	for _ = range signalChannel {
 		logger.Info("Reloading routes")
 
-		if err := launchpad.Reload(base); err != nil {
+		if err := missionControl.Reload(base); err != nil {
 			logger.WithFields(log.Fields{
 				"err": err,
 			}).Fatal("Failed to reload routes")
