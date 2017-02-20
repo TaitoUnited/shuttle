@@ -8,7 +8,7 @@ import (
 	"path"
 )
 
-func CreateMultipartForm(filepath string) (*bytes.Buffer, string, error) {
+func CreateMultipartForm(filepath string, params map[string]string) (*bytes.Buffer, string, error) {
 	handle, err := os.Open(filepath)
 	if err != nil {
 		return nil, "", err
@@ -26,6 +26,12 @@ func CreateMultipartForm(filepath string) (*bytes.Buffer, string, error) {
 
 	if _, err := io.Copy(part, handle); err != nil {
 		return nil, "", err
+	}
+
+	for key, value := range params {
+		if err := writer.WriteField(key, value); err != nil {
+			return nil, "", err
+		}
 	}
 
 	if err := writer.Close(); err != nil {

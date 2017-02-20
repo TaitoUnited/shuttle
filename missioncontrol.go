@@ -133,19 +133,17 @@ func (mc MissionControl) DiscoverRoutes(base string) ([]Route, error) {
 			continue
 		}
 
-		endpointPath := path.Join(base, file.Name(), ".endpoint")
+		username := file.Name()
+		endpointPath := path.Join(base, username, ".endpoint")
+
 		if _, err := os.Stat(endpointPath); err == nil {
-			endpoint, err := ioutil.ReadFile(endpointPath)
+			contents, err := ioutil.ReadFile(endpointPath)
 			if err != nil {
 				return routes, err
 			}
 
-			route := Route{
-				Path:     path.Join(base, file.Name(), "files"),
-				Endpoint: strings.TrimSpace(string(endpoint)),
-			}
-
-			routes = append(routes, route)
+			endpoint := strings.TrimSpace(string(contents))
+			routes = append(routes, NewRoute(base, username, endpoint))
 		}
 	}
 

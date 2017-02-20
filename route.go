@@ -11,13 +11,26 @@ import (
 
 type Route struct {
 	Path     string
+	Username string
 	Endpoint string
+}
+
+func NewRoute(base string, username string, endpoint string) Route {
+	return Route{
+		Path:     path.Join(base, username, "files"),
+		Username: username,
+		Endpoint: endpoint,
+	}
 }
 
 func (r Route) Transport(filename string) error {
 	filepath := path.Join(r.Path, filename)
 
-	body, contentType, err := CreateMultipartForm(filepath)
+	params := map[string]string{
+		"username": r.Username,
+	}
+
+	body, contentType, err := CreateMultipartForm(filepath, params)
 	if err != nil {
 		return err
 	}

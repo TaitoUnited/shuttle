@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"io"
 	"os"
 	"os/signal"
 	"path"
@@ -58,7 +59,7 @@ func main() {
 	logger.Info("Loading in old shuttles")
 
 	count, err := missionControl.Launchpad.LoadShuttles()
-	if err != nil {
+	if err != nil && err != io.EOF {
 		logger.WithFields(log.Fields{
 			"err": err,
 		}).Error("Failed to load old shuttles, continuing operation")
