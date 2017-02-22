@@ -15,14 +15,14 @@ type Configuration struct {
 	Routes        []Route `json:"routes"`
 	PrivateKey    ssh.Signer
 	RawPrivateKey string `json:"private_key"`
-	FtpHost       string `json:"ftp_host"`
-	FtpPort       int    `json:"ftp_port"`
-	SftpHost      string `json:"sftp_host"`
-	SftpPort      int    `json:"sftp_port"`
+	FtpHost       string
+	FtpPort       int
+	SftpHost      string
+	SftpPort      int
 }
 
 // NewConfiguration returns a new configuration struct.
-func NewConfiguration(path string) (Configuration, error) {
+func NewConfiguration(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int) (Configuration, error) {
 	var configuration Configuration
 
 	handle, err := os.Open(path)
@@ -41,5 +41,10 @@ func NewConfiguration(path string) (Configuration, error) {
 	}
 
 	configuration.PrivateKey = private
+	configuration.FtpHost = ftpHost
+	configuration.FtpPort = ftpPort
+	configuration.SftpHost = sftpHost
+	configuration.SftpPort = sftpPort
+
 	return configuration, nil
 }

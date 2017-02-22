@@ -1,27 +1,18 @@
 package main
 
-import (
-	"github.com/AntiPaste/sftp"
-	log "github.com/sirupsen/logrus"
-)
+import log "github.com/sirupsen/logrus"
 
 type MissionControl struct {
 	Configuration Configuration
 	Launchpad     Launchpad
-	Shutdown      chan bool
 	Services      []Service
-	Incoming      chan Shuttle
-	IncomingSftp  chan sftp.WrittenFile
 }
 
 func NewMissionControl(retry int, shuttlesPath string) MissionControl {
 	launchpad := NewLaunchpad(retry, shuttlesPath)
 
 	return MissionControl{
-		Launchpad:    launchpad,
-		Shutdown:     make(chan bool),
-		Incoming:     make(chan Shuttle, 100),
-		IncomingSftp: make(chan sftp.WrittenFile, 100),
+		Launchpad: launchpad,
 	}
 }
 
@@ -94,8 +85,8 @@ func (mc *MissionControl) WatchWriteNotifications(writeNotifications chan WriteN
 	}
 }
 
-func (mc *MissionControl) Reload(path string) error {
-	configuration, err := NewConfiguration(path)
+func (mc *MissionControl) Reload(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int) error {
+	configuration, err := NewConfiguration(path, ftpHost, ftpPort, sftpHost, sftpPort)
 	if err != nil {
 		return err
 	}
