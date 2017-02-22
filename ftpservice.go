@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/AntiPaste/ftpserver/server"
 	log "github.com/sirupsen/logrus"
 )
@@ -127,8 +129,12 @@ func (drv *ftpDriver) AuthUser(cc server.ClientContext, user, pass string) (serv
 	defer drv.routesMutex.RUnlock()
 
 	for _, route := range drv.routes {
-		if route.Username == user && route.Password == pass {
-			return drv, nil
+		if route.Username == user {
+			if err := bcrypt.CompareHashAndPassword([]byte(route.Password), []byte(pass)); err != nil {
+				return drv, nil
+			}
+
+			break
 		}
 	}
 
@@ -215,8 +221,8 @@ func (drv *ftpDriver) GetSettings() *server.Settings {
 
 func (drv *ftpDriver) NotifyWrite(cc server.ClientContext, path string) error {
 	drv.writeNotifications <- WriteNotification{
-		Username: drv.path(cc, path),
-		Path:     cc.User(),
+		Username: cc.User(),
+		Path:     drv.path(cc, path),
 	}
 
 	return nil

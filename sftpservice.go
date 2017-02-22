@@ -10,6 +10,7 @@ import (
 
 	"github.com/AntiPaste/sftp"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -53,8 +54,12 @@ func (s *SftpService) Start() error {
 			defer s.routesMutex.RUnlock()
 
 			for _, route := range s.routes {
-				if c.User() == route.Username && string(pass) == route.Password {
-					return nil, nil
+				if c.User() == route.Username {
+					if err := bcrypt.CompareHashAndPassword([]byte(route.Password), pass); err != nil {
+						return nil, nil
+					}
+
+					break
 				}
 			}
 

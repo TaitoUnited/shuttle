@@ -2,3 +2,4 @@ github.com/sirupsen/logrus
 github.com/AntiPaste/sftp
 github.com/AntiPaste/ftpserver
 github.com/TaitoUnited/fsnotify
+golang.org/x/crypto/bcrypt
