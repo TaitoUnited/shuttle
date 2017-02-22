@@ -73,7 +73,7 @@ func (lp *Launchpad) HasShuttle(shuttle Shuttle) bool {
 
 	found := false
 	for _, otherShuttle := range lp.Shuttles {
-		if shuttle.Route.Path == otherShuttle.Route.Path {
+		if shuttle.Path == otherShuttle.Path {
 			found = true
 			break
 		}
@@ -106,7 +106,7 @@ func (lp *Launchpad) RemoveShuttle(shuttle Shuttle) {
 
 	shuttles := []Shuttle{}
 	for _, otherShuttle := range lp.Shuttles {
-		if shuttle.Route.Path != otherShuttle.Route.Path {
+		if shuttle.Path != otherShuttle.Path {
 			shuttles = append(shuttles, otherShuttle)
 		}
 	}
@@ -127,22 +127,20 @@ func (lp *Launchpad) LaunchShuttles() {
 		}
 
 		logger := log.WithFields(log.Fields{
-			"path":     shuttle.Route.Path,
+			"path":     shuttle.Path,
 			"endpoint": shuttle.Route.Endpoint,
-			"filename": shuttle.Filename,
 		})
 
-		logger.Info("Shuttle received, transporting to destination")
-
-		_, statErr := os.Stat(shuttle.Path())
+		_, statErr := os.Stat(shuttle.Path)
 		if os.IsNotExist(statErr) {
 			logger.Warning("Shuttle payload has gone missing, discarding")
 			continue
 		}
 
 		lp.Enroute.Add(1)
-		transportErr := shuttle.Route.Transport(shuttle.Filename)
-		lp.Enroute.Done()
+
+		logger.Info("Shuttle received, transporting to destination")
+		transportErr := shuttle.Send()
 
 		if statErr != nil || transportErr != nil {
 			logger.WithFields(log.Fields{
@@ -155,10 +153,13 @@ func (lp *Launchpad) LaunchShuttles() {
 				queue <- shuttle
 			}(lp.Queue, lp.Retry, shuttle)
 
+			lp.Enroute.Done()
 			continue
 		}
 
 		lp.RemoveShuttle(shuttle)
 		logger.Info("Shuttle arrived at the destination successfully")
+
+		lp.Enroute.Done()
 	}
 }

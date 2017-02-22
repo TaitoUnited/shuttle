@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"os/signal"
-	"path"
 	"syscall"
 	"time"
 
@@ -13,30 +12,33 @@ import (
 )
 
 func main() {
-	var base, shuttlesPath string
+	var configPath, shuttlesPath string
 	var retry, workers int
 
 	start := time.Now()
 
-	flag.StringVar(&base, "base", "REQUIRED", "Base path, the files are expected to be in [base]/[user]/files/")
+	flag.StringVar(&configPath, "config", "/etc/shuttle/config.json", "Path to the config file")
 	flag.StringVar(&shuttlesPath, "shuttles", "/run/shuttle/shuttles.gob", "Path to the file that contains persisted shuttles")
-	flag.IntVar(&retry, "retry", 5, "Retry delay for error-inducing shuttles")
-	flag.IntVar(&workers, "workers", 5, "Threads that are handling uploads, i.e. the amount of concurrent uploads")
+	flag.IntVar(&retry, "retry", 5, "Delay before restarting error-inducing shuttles")
+	flag.IntVar(&workers, "workers", 5, "Concurrent uploads")
 	flag.Parse()
 
-	if base == "REQUIRED" {
-		panic("Missing -base argument")
-	}
-
-	// Normalize the path, will not end in a slash
-	base = path.Clean(base)
-
 	logger := log.WithFields(log.Fields{
-		"base": base,
+		"path": configPath,
 	})
 
 	missionControl := NewMissionControl(retry, shuttlesPath)
-	if err := missionControl.Reload(base); err != nil {
+	if err := missionControl.Reload(configPath); err != nil {
+		logger.WithFields(log.Fields{
+			"err": err,
+		}).Fatal("Failed to load configuration")
+	}
+
+	logger = log.WithFields(log.Fields{
+		"base": missionControl.Configuration.Base,
+	})
+
+	if err := missionControl.Start(); err != nil {
 		logger.WithFields(log.Fields{
 			"err": err,
 		}).Fatal("Failed to start up launchpad")
@@ -74,22 +76,23 @@ func main() {
 	signal.Notify(signalChannel, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM)
 	for sig := range signalChannel {
 		if sig == syscall.SIGHUP {
-			logger.Info("Reloading routes")
+			logger.Info("Reloading configuration")
 
-			if err := missionControl.Reload(base); err != nil {
+			if err := missionControl.Reload(configPath); err != nil {
 				logger.WithFields(log.Fields{
 					"err": err,
-				}).Fatal("Failed to reload routes")
+				}).Error("Failed to reload configuration")
+				continue
 			}
 
-			logger.Info("Routes reloaded")
+			logger.Info("Configuration reloaded")
 			continue
 		}
 
 		if sig == syscall.SIGINT || sig == syscall.SIGTERM {
-			logger.Info("Shutdown request received, waiting for transfers to complete...")
-			missionControl.Launchpad.Enroute.Wait()
-			logger.Info("Transfers complete, shutting down")
+			logger.Info("Shutdown request received, waiting for clean exit...")
+			missionControl.Stop()
+			logger.Info("Clean exit complete, shutting down")
 
 			break
 		}
