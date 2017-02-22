@@ -1,151 +1,106 @@
 package main
 
-import (
-	"io/ioutil"
-	"os"
-	"path"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/TaitoUnited/fsnotify"
-	log "github.com/sirupsen/logrus"
-)
+import log "github.com/sirupsen/logrus"
 
 type MissionControl struct {
-	Watcher   *fsnotify.Watcher
-	Launchpad Launchpad
-	Routes    []Route
-	Enroute   *sync.WaitGroup
+	Configuration Configuration
+	Launchpad     Launchpad
+	Services      []Service
 }
 
 func NewMissionControl(retry int, shuttlesPath string) MissionControl {
 	launchpad := NewLaunchpad(retry, shuttlesPath)
 
 	return MissionControl{
-		Watcher:   nil,
 		Launchpad: launchpad,
-		Routes:    []Route{},
 	}
 }
 
-func (mc *MissionControl) Reload(base string) error {
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return err
-	}
+func (mc *MissionControl) Start() error {
+	localRoutes, externalRoutes := SeparateRoutes(mc.Configuration.Routes)
 
-	routes, err := mc.DiscoverRoutes(base)
-	if err != nil {
-		return err
-	}
+	// SFTP
+	sftp := NewSftpService(mc.Configuration.SftpHost, mc.Configuration.SftpPort, mc.Configuration.Base, externalRoutes, mc.Configuration.PrivateKey)
+	mc.Services = append(mc.Services, sftp)
 
-	// Add watchers for all the route folders
-	for _, route := range routes {
-		if err := watcher.Add(route.Path); err != nil {
+	// FTP
+	ftp := NewFtpService(mc.Configuration.FtpHost, mc.Configuration.FtpPort, mc.Configuration.Base, externalRoutes)
+	mc.Services = append(mc.Services, ftp)
+
+	// Local
+	local := NewLocalService(mc.Configuration.Base, localRoutes)
+	mc.Services = append(mc.Services, local)
+
+	// Start up everything
+	for _, service := range mc.Services {
+		if err := service.Start(); err != nil {
+			log.WithFields(log.Fields{
+				"err":     err,
+				"service": service.Name(),
+			}).Error("Failed to start service")
+
 			return err
 		}
+
+		go mc.WatchWriteNotifications(service.WriteNotifications())
+
+		log.WithFields(log.Fields{
+			"service": service.Name(),
+		}).Info("Service started")
 	}
-
-	start := time.Now()
-	log.Info("Mission control critical section starts")
-
-	// Close the old watcher if it exists
-	if mc.Watcher != nil {
-		if err := mc.Watcher.Close(); err != nil {
-			return err
-		}
-	}
-
-	// Replace routes and start a new watcher
-	mc.Routes = routes
-	go mc.Watch(watcher)
-
-	log.WithFields(log.Fields{
-		"elapsed": time.Since(start),
-	}).Info("Mission control critical section ends")
 
 	return nil
 }
 
-func (mc *MissionControl) Watch(watcher *fsnotify.Watcher) {
-	mc.Watcher = watcher
-	defer mc.Watcher.Close()
+func (mc *MissionControl) Stop() {
+	log.Info("Waiting for services to shutdown...")
 
-	for {
-		select {
-		case event := <-mc.Watcher.Events:
-			if event.Op&fsnotify.CloseWrite != fsnotify.CloseWrite {
-				continue
-			}
-
-			fileinfo, err := os.Stat(event.Name)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"path": event.Name,
-				}).Error("Failed to stat on fsnotify event")
-				continue
-			}
-
-			if fileinfo.IsDir() {
-				continue
-			}
-
-			directory := path.Dir(event.Name)
-
-			found := false
-			for _, route := range mc.Routes {
-				if route.Path == directory {
-					mc.Launchpad.AddShuttle(NewShuttle(route, path.Base(event.Name)))
-
-					found = true
-					break
-				}
-			}
-
-			if !found {
-				log.WithFields(log.Fields{
-					"path": event.Name,
-				}).Error("Failed to find route for fsnotify event")
-			}
-
-		case err := <-mc.Watcher.Errors:
-			// nil errors caused by a closed watcher
-			if err != nil {
-				log.WithFields(log.Fields{
-					"err": err,
-				}).Error("fsnotify error")
-			}
+	for _, service := range mc.Services {
+		if err := service.Stop(); err != nil {
+			log.WithFields(log.Fields{
+				"service": service.Name(),
+				"err":     err,
+			}).Warning("Failed to stop service gracefully")
 		}
 	}
+
+	log.Info("Waiting for enroute shuttles to reach their destination...")
+
+	mc.Launchpad.Enroute.Wait()
 }
 
-func (mc MissionControl) DiscoverRoutes(base string) ([]Route, error) {
-	routes := []Route{}
-
-	files, err := ioutil.ReadDir(base)
-	if err != nil {
-		return routes, err
-	}
-
-	for _, file := range files {
-		if !file.IsDir() {
+func (mc *MissionControl) WatchWriteNotifications(writeNotifications chan WriteNotification) {
+	for writeNotification := range writeNotifications {
+		shuttle, err := NewShuttleFromUsername(writeNotification.Path, writeNotification.Username, mc.Configuration.Routes)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"username": writeNotification.Username,
+				"path":     writeNotification.Path,
+				"err":      err,
+			}).Error("Failed to create shuttle from write notification")
 			continue
 		}
 
-		username := file.Name()
-		endpointPath := path.Join(base, username, ".endpoint")
+		mc.Launchpad.AddShuttle(shuttle)
+	}
+}
 
-		if _, err := os.Stat(endpointPath); err == nil {
-			contents, err := ioutil.ReadFile(endpointPath)
-			if err != nil {
-				return routes, err
-			}
+func (mc *MissionControl) Reload(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int) error {
+	configuration, err := NewConfiguration(path, ftpHost, ftpPort, sftpHost, sftpPort)
+	if err != nil {
+		return err
+	}
 
-			endpoint := strings.TrimSpace(string(contents))
-			routes = append(routes, NewRoute(base, username, endpoint))
+	mc.Configuration = configuration
+
+	localRoutes, externalRoutes := SeparateRoutes(mc.Configuration.Routes)
+	for _, service := range mc.Services {
+		if _, ok := service.(*LocalService); ok {
+			service.Reload(localRoutes)
+		} else {
+			service.Reload(externalRoutes)
 		}
 	}
 
-	return routes, nil
+	return nil
 }

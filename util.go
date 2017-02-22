@@ -41,37 +41,14 @@ func CreateMultipartForm(filepath string, params map[string]string) (*bytes.Buff
 	return body, writer.FormDataContentType(), nil
 }
 
-func DiffRoutes(old []Route, new []Route) ([]Route, []Route) {
-	added := []Route{}
-	removed := []Route{}
-
-	for _, oldRoute := range old {
-		found := false
-		for _, newRoute := range new {
-			if oldRoute.Path == newRoute.Path {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			removed = append(removed, oldRoute)
+func SeparateRoutes(routes []Route) (local []Route, external []Route) {
+	for _, route := range routes {
+		if route.Local {
+			local = append(local, route)
+		} else {
+			external = append(external, route)
 		}
 	}
 
-	for _, newRoute := range new {
-		found := false
-		for _, oldRoute := range old {
-			if oldRoute.Path == newRoute.Path {
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			added = append(added, newRoute)
-		}
-	}
-
-	return added, removed
+	return
 }
