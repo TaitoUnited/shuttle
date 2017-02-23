@@ -130,7 +130,7 @@ func (drv *ftpDriver) AuthUser(cc server.ClientContext, user, pass string) (serv
 
 	for _, route := range drv.routes {
 		if route.Username == user {
-			if err := bcrypt.CompareHashAndPassword([]byte(route.Password), []byte(pass)); err != nil {
+			if err := bcrypt.CompareHashAndPassword([]byte(route.Password), []byte(pass)); err == nil {
 				return drv, nil
 			}
 

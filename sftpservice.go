@@ -55,7 +55,7 @@ func (s *SftpService) Start() error {
 
 			for _, route := range s.routes {
 				if c.User() == route.Username {
-					if err := bcrypt.CompareHashAndPassword([]byte(route.Password), pass); err != nil {
+					if err := bcrypt.CompareHashAndPassword([]byte(route.Password), pass); err == nil {
 						return nil, nil
 					}
 
