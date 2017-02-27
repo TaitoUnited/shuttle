@@ -142,23 +142,23 @@ func (s *SftpService) accept(config *ssh.ServerConfig) {
 			continue
 		}
 
-		// Before use, a handshake must be performed on the incoming net.Conn.
-		serverConn, chans, reqs, err := ssh.NewServerConn(newConn, config)
-		if err != nil {
-			if err != io.EOF {
-				log.WithFields(log.Fields{
-					"err": err,
-				}).Error("Failed to handshake SSH connection", err)
-			}
-
-			continue
-		}
-
-		go s.handleClient(serverConn, chans, reqs)
+		go s.handleClient(newConn, config)
 	}
 }
 
-func (s *SftpService) handleClient(serverConn *ssh.ServerConn, chans <-chan ssh.NewChannel, reqs <-chan *ssh.Request) {
+func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
+	// Before use, a handshake must be performed on the incoming net.Conn.
+	serverConn, chans, reqs, err := ssh.NewServerConn(conn, config)
+	if err != nil {
+		if err != io.EOF {
+			log.WithFields(log.Fields{
+				"err": err,
+			}).Error("Failed to handshake SSH connection", err)
+		}
+
+		return
+	}
+
 	defer serverConn.Close()
 
 	// The incoming Request channel must be serviced.
