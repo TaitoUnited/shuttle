@@ -2,11 +2,13 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"time"
 )
 
 type Shuttle struct {
@@ -59,7 +61,20 @@ func (s Shuttle) Send() error {
 
 	request.Header.Set("Content-Type", contentType)
 
-	client := &http.Client{}
+	dialer := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Dial:                  dialer.Dial,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
+
 	response, err := client.Do(request)
 	if err != nil {
 		return err
@@ -70,11 +85,15 @@ func (s Shuttle) Send() error {
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode > 299 {
-		return fmt.Errorf("Received non-200 status code: %d", response.StatusCode)
-	}
-
-	if err := os.Remove(s.Path); err != nil {
-		return err
+		// Move the file to a failed folder
+		if err := os.Rename(s.Path, filepath.Join(filepath.Dir(s.Path), "failed")); err != nil {
+			return err
+		}
+	} else {
+		// Remove the file
+		if err := os.Remove(s.Path); err != nil {
+			return err
+		}
 	}
 
 	return nil
