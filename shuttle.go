@@ -51,12 +51,12 @@ func (s Shuttle) Send() error {
 
 	body, contentType, err := CreateMultipartForm(s.Path, params)
 	if err != nil {
-		return err
+		return NewTransportError(err, true)
 	}
 
 	request, err := http.NewRequest("POST", s.Route.Endpoint, body)
 	if err != nil {
-		return err
+		return NewTransportError(err, true)
 	}
 
 	request.Header.Set("Content-Type", contentType)
@@ -77,7 +77,7 @@ func (s Shuttle) Send() error {
 
 	response, err := client.Do(request)
 	if err != nil {
-		return err
+		return NewTransportError(err, true)
 	}
 
 	// This can fail but it's probably fine, no need to skip the rest
@@ -87,12 +87,15 @@ func (s Shuttle) Send() error {
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		// Move the file to a failed folder
 		if err := os.Rename(s.Path, filepath.Join(filepath.Dir(s.Path), "failed", filepath.Base(s.Path))); err != nil {
-			return err
+			return NewTransportError(err, false)
 		}
+
+		err := errors.New("Server returned non-200, moving to failed folder")
+		return NewTransportError(err, false)
 	} else {
 		// Remove the file
 		if err := os.Remove(s.Path); err != nil {
-			return err
+			return NewTransportError(err, false)
 		}
 	}
 

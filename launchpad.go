@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/gob"
-	"fmt"
 	"os"
 	"sync"
 	"time"
@@ -131,8 +130,7 @@ func (lp *Launchpad) LaunchShuttles() {
 			"endpoint": shuttle.Route.Endpoint,
 		})
 
-		_, statErr := os.Stat(shuttle.Path)
-		if os.IsNotExist(statErr) {
+		if _, err := os.Stat(shuttle.Path); os.IsNotExist(err) {
 			logger.Warning("Shuttle payload has gone missing, discarding")
 			continue
 		}
@@ -140,18 +138,29 @@ func (lp *Launchpad) LaunchShuttles() {
 		lp.Enroute.Add(1)
 
 		logger.Info("Shuttle received, transporting to destination")
-		transportErr := shuttle.Send()
 
-		if statErr != nil || transportErr != nil {
-			logger.WithFields(log.Fields{
-				"transportErr": transportErr,
-				"statErr":      statErr,
-			}).Error(fmt.Sprintf("Shuttle crashed, retrying in %d seconds", lp.Retry))
+		if err := shuttle.Send(); err != nil {
+			// This should always succeed
+			transportErr := err.(TransportError)
+			cause := transportErr.Cause
 
-			go func(queue chan Shuttle, retry int, shuttle Shuttle) {
-				time.Sleep(time.Duration(retry) * time.Second)
-				queue <- shuttle
-			}(lp.Queue, lp.Retry, shuttle)
+			if transportErr.Temporary {
+				logger.WithFields(log.Fields{
+					"err":   cause,
+					"delay": lp.Retry,
+				}).Error("Shuttle crashed, retrying soon")
+
+				go func(queue chan Shuttle, retry int, shuttle Shuttle) {
+					time.Sleep(time.Duration(retry) * time.Second)
+					queue <- shuttle
+				}(lp.Queue, lp.Retry, shuttle)
+			} else {
+				logger.WithFields(log.Fields{
+					"err": cause,
+				}).Error("Shuttle crashed with a non-temporary error, discarding")
+
+				lp.RemoveShuttle(shuttle)
+			}
 
 			lp.Enroute.Done()
 			continue
