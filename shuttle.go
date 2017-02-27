@@ -92,11 +92,11 @@ func (s Shuttle) Send() error {
 
 		err := errors.New("Server returned non-200, moving to failed folder")
 		return NewTransportError(err, false)
-	} else {
-		// Remove the file
-		if err := os.Remove(s.Path); err != nil {
-			return NewTransportError(err, false)
-		}
+	}
+
+	// Remove the file
+	if err := os.Remove(s.Path); err != nil {
+		return NewTransportError(err, false)
 	}
 
 	return nil
