@@ -22,18 +22,20 @@ type FtpService struct {
 	host               string
 	port               int
 	chroot             string
+	certificate        tls.Certificate
 	writeNotifications chan WriteNotification
 	server             *server.FtpServer
 	driver             *ftpDriver
 }
 
 // NewFtpService creates a new FtpService.
-func NewFtpService(host string, port int, chroot string, routes []Route) *FtpService {
+func NewFtpService(host string, port int, chroot string, certificate tls.Certificate, routes []Route) *FtpService {
 	return &FtpService{
 		routes:             routes,
 		host:               host,
 		port:               port,
 		chroot:             chroot,
+		certificate:        certificate,
 		writeNotifications: make(chan WriteNotification, 100),
 	}
 }
@@ -45,6 +47,11 @@ func (s *FtpService) Name() string {
 
 // Start starts the service.
 func (s *FtpService) Start() error {
+	tlsConfig := &tls.Config{
+		NextProtos:   []string{"ftp"},
+		Certificates: []tls.Certificate{s.certificate},
+	}
+
 	s.driver = &ftpDriver{
 		base:        s.chroot,
 		routes:      s.routes,
@@ -54,6 +61,7 @@ func (s *FtpService) Start() error {
 			ListenPort: s.port,
 		},
 		writeNotifications: s.WriteNotifications(),
+		tlsConfig:          tlsConfig,
 	}
 
 	s.server = server.NewFtpServer(s.driver)
@@ -101,6 +109,7 @@ type ftpDriver struct {
 	writeNotifications chan WriteNotification
 	routes             []Route
 	routesMutex        *sync.RWMutex
+	tlsConfig          *tls.Config
 }
 
 func (drv *ftpDriver) path(cc server.ClientContext, p string) string {
@@ -141,9 +150,8 @@ func (drv *ftpDriver) AuthUser(cc server.ClientContext, user, pass string) (serv
 	return nil, errors.New("Login incorrect")
 }
 
-// TODO
 func (drv *ftpDriver) GetTLSConfig() (*tls.Config, error) {
-	return &tls.Config{}, nil
+	return drv.tlsConfig, nil
 }
 
 func (drv *ftpDriver) ChangeDirectory(cc server.ClientContext, directory string) error {

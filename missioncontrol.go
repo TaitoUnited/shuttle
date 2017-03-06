@@ -24,7 +24,7 @@ func (mc *MissionControl) Start() error {
 	mc.Services = append(mc.Services, sftp)
 
 	// FTP
-	ftp := NewFtpService(mc.Configuration.FtpHost, mc.Configuration.FtpPort, mc.Configuration.Base, externalRoutes)
+	ftp := NewFtpService(mc.Configuration.FtpHost, mc.Configuration.FtpPort, mc.Configuration.Base, mc.Configuration.Certificate, externalRoutes)
 	mc.Services = append(mc.Services, ftp)
 
 	// Local
