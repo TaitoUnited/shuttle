@@ -25,6 +25,7 @@ type SftpService struct {
 	writeNotifications chan WriteNotification
 	listener           net.Listener
 	servers            map[string]*sftp.Server
+	serversMutex       *sync.RWMutex
 	quit               chan bool
 }
 
@@ -39,6 +40,7 @@ func NewSftpService(host string, port int, chroot string, routes []Route, privat
 		incoming:           make(chan sftp.WrittenFile, 100),
 		writeNotifications: make(chan WriteNotification, 100),
 		servers:            make(map[string]*sftp.Server),
+		serversMutex:       &sync.RWMutex{},
 		quit:               make(chan bool, 1),
 	}
 }
@@ -97,11 +99,16 @@ func (s *SftpService) Stop() error {
 		return err
 	}
 
+	s.serversMutex.RLock()
+
 	for _, server := range s.servers {
 		if err := server.Stop(); err != nil {
+			s.serversMutex.RUnlock()
 			return err
 		}
 	}
+
+	s.serversMutex.RUnlock()
 
 	// This is really nasty but it works
 	// Wait for the channels to be drained
@@ -147,6 +154,19 @@ func (s *SftpService) accept(config *ssh.ServerConfig) {
 }
 
 func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
+	sessionOpen := false
+
+	go func() {
+		time.Sleep(5 * time.Second)
+
+		if !sessionOpen {
+			log.WithFields(log.Fields{
+				"address": conn.RemoteAddr(),
+			}).Warning("Handshake took too long, timing out")
+			conn.Close()
+		}
+	}()
+
 	// Before use, a handshake must be performed on the incoming net.Conn.
 	serverConn, chans, reqs, err := ssh.NewServerConn(conn, config)
 	if err != nil {
@@ -184,6 +204,8 @@ func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
 			break
 		}
 
+		sessionOpen = true
+
 		// Sessions have out-of-band requests such as "shell",
 		// "pty-req" and "env".  Here we handle only the
 		// "subsystem" request.
@@ -215,7 +237,9 @@ func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
 			break
 		}
 
+		s.serversMutex.Lock()
 		s.servers[serverID] = server
+		s.serversMutex.Unlock()
 
 		if err := server.Serve(); err != nil {
 			if err != io.EOF {
@@ -228,7 +252,9 @@ func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
 		}
 	}
 
+	s.serversMutex.Lock()
 	delete(s.servers, serverID)
+	s.serversMutex.Unlock()
 }
 
 func (s *SftpService) watchIncoming() {
