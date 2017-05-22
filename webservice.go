@@ -130,8 +130,10 @@ func (s *WebService) auth(handler http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *WebService) httpRedirect(writer http.ResponseWriter, request *http.Request) {
-	host, _, _ := net.SplitHostPort(request.Host)
-	if s.port != 443 {
+	host, _, err := net.SplitHostPort(request.Host)
+	if err != nil {
+		host = request.Host
+	} else if s.port != 443 {
 		host += fmt.Sprintf(":%d", s.port)
 	}
 
