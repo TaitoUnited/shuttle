@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"io"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path"
 )
@@ -39,6 +40,17 @@ func CreateMultipartForm(filepath string, params map[string]string) (*bytes.Buff
 	}
 
 	return body, writer.FormDataContentType(), nil
+}
+
+func DetectContentType(reader io.Reader) (string, error) {
+	buffer := make([]byte, 512)
+
+	n, err := reader.Read(buffer)
+	if err != nil && err != io.EOF {
+		return "", err
+	}
+
+	return http.DetectContentType(buffer[:n]), nil
 }
 
 func SeparateRoutes(routes []Route) (local []Route, external []Route) {

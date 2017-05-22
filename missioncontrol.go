@@ -27,6 +27,10 @@ func (mc *MissionControl) Start() error {
 	ftp := NewFtpService(mc.Configuration.FtpHost, mc.Configuration.FtpPort, mc.Configuration.Base, mc.Configuration.Certificate, externalRoutes)
 	mc.Services = append(mc.Services, ftp)
 
+	// Web
+	web := NewWebService(mc.Configuration.WebHost, mc.Configuration.WebPort, mc.Configuration.WebInsecurePort, mc.Configuration.Base, mc.Configuration.Certificate, externalRoutes)
+	mc.Services = append(mc.Services, web)
+
 	// Local
 	local := NewLocalService(mc.Configuration.Base, localRoutes)
 	mc.Services = append(mc.Services, local)
@@ -85,8 +89,8 @@ func (mc *MissionControl) WatchWriteNotifications(writeNotifications chan WriteN
 	}
 }
 
-func (mc *MissionControl) Reload(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int) error {
-	configuration, err := NewConfiguration(path, ftpHost, ftpPort, sftpHost, sftpPort)
+func (mc *MissionControl) Reload(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int, webHost string, webPort int, webInsecurePort int) error {
+	configuration, err := NewConfiguration(path, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort)
 	if err != nil {
 		return err
 	}
