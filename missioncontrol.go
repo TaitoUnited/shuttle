@@ -1,6 +1,11 @@
 package main
 
-import log "github.com/sirupsen/logrus"
+import (
+	"os"
+	"path/filepath"
+
+	log "github.com/sirupsen/logrus"
+)
 
 type MissionControl struct {
 	Configuration Configuration
@@ -17,6 +22,14 @@ func NewMissionControl(retry int, shuttlesPath string) MissionControl {
 }
 
 func (mc *MissionControl) Start() error {
+	if err := mc.createDirectories(); err != nil {
+		log.WithFields(log.Fields{
+			"err": err,
+		}).Error("Failed to create directories")
+
+		return err
+	}
+
 	localRoutes, externalRoutes := SeparateRoutes(mc.Configuration.Routes)
 
 	// SFTP
@@ -97,12 +110,31 @@ func (mc *MissionControl) Reload(path string, ftpHost string, ftpPort int, sftpH
 
 	mc.Configuration = configuration
 
+	if err := mc.createDirectories(); err != nil {
+		log.WithFields(log.Fields{
+			"err": err,
+		}).Error("Failed to create directories")
+
+		return err
+	}
+
 	localRoutes, externalRoutes := SeparateRoutes(mc.Configuration.Routes)
 	for _, service := range mc.Services {
 		if _, ok := service.(*LocalService); ok {
 			service.Reload(localRoutes)
 		} else {
 			service.Reload(externalRoutes)
+		}
+	}
+
+	return nil
+}
+
+func (mc *MissionControl) createDirectories() error {
+	for _, route := range mc.Configuration.Routes {
+		path := filepath.Join(mc.Configuration.Base, route.Username, "failed")
+		if err := os.MkdirAll(path, 0755); err != nil {
+			return err
 		}
 	}
 

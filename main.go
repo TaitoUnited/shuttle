@@ -19,11 +19,12 @@ func main() {
 
 	flag.StringVar(&configPath, "config", "/etc/shuttle/config.json", "Path to the config file")
 	flag.StringVar(&shuttlesPath, "shuttles", "/run/shuttle/shuttles.gob", "Path to the file that contains persisted shuttles")
+	flag.IntVar(&retry, "retry", 5, "Delay before restarting error-inducing shuttles")
+	flag.IntVar(&workers, "workers", 5, "Concurrent uploads")
+
 	flag.StringVar(&ftpHost, "ftp-host", "0.0.0.0", "Host that the FTP service will listen on")
 	flag.StringVar(&sftpHost, "sftp-host", "0.0.0.0", "Host that the SFTP service will listen on")
 	flag.StringVar(&webHost, "web-host", "0.0.0.0", "Host that the web service will listen on")
-	flag.IntVar(&retry, "retry", 5, "Delay before restarting error-inducing shuttles")
-	flag.IntVar(&workers, "workers", 5, "Concurrent uploads")
 	flag.IntVar(&ftpPort, "ftp-port", 2001, "Port that the FTP service will listen on")
 	flag.IntVar(&sftpPort, "sftp-port", 2002, "Port that the SFTP service will listen on")
 	flag.IntVar(&webPort, "web-port", 8081, "Port that the HTTPS web service will listen on")
