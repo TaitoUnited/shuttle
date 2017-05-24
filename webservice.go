@@ -34,6 +34,7 @@ type userFile struct {
 	Mode     string
 	Modified string
 	Name     string
+	IsDir    bool
 }
 
 // NewWebService creates a new WebService.
@@ -59,6 +60,7 @@ func (s *WebService) Name() string {
 func (s *WebService) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.auth(s.serveRoot))
+	mux.HandleFunc("/list", s.auth(s.serveDirectory))
 	mux.HandleFunc("/download", s.auth(s.serveFile))
 	mux.HandleFunc("/upload", s.auth(s.handleUpload))
 
@@ -165,6 +167,48 @@ func (s *WebService) serveRoot(writer http.ResponseWriter, request *http.Request
 			Mode:     file.Mode().String(),
 			Modified: timestamp,
 			Name:     file.Name(),
+			IsDir:    file.IsDir(),
+		})
+	}
+
+	if err := s.rootTemplate.Execute(writer, userFiles); err != nil {
+		http.Error(writer, "Templating error", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (s *WebService) serveDirectory(writer http.ResponseWriter, request *http.Request) {
+	username, _, _ := request.BasicAuth()
+
+	directory := request.URL.Query().Get("directory")
+	directory = filepath.Base(directory)
+
+	path := filepath.Join(s.chroot, username, directory)
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		http.Error(writer, "Directory not found", http.StatusNotFound)
+		return
+	}
+
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		http.Error(writer, "Error while reading directory", http.StatusInternalServerError)
+		return
+	}
+
+	userFiles := []userFile{}
+	for _, file := range files {
+		var timestamp string
+		if file.ModTime().Year() != time.Now().Year() {
+			timestamp = file.ModTime().Format("Jan 2 2006")
+		} else {
+			timestamp = file.ModTime().Format("Jan 2 15:04")
+		}
+
+		userFiles = append(userFiles, userFile{
+			Mode:     file.Mode().String(),
+			Modified: timestamp,
+			Name:     file.Name(),
+			IsDir:    file.IsDir(),
 		})
 	}
 
@@ -252,7 +296,7 @@ const rootTemplateSource = `
 				<th>Mode</th>
 				<th>Modified</th>
 				<th>Name</th>
-				<th>Download</th>
+				<th></th>
 			</tr>
 		</thead>
 		<tbody>
@@ -261,7 +305,13 @@ const rootTemplateSource = `
 					<td>{{.Mode}}</td>
 					<td>{{.Modified}}</td>
 					<td>{{.Name}}</td>
-					<td><a href="/download?filename={{.Name}}">Download</a>
+					<td>
+						{{if .IsDir}}
+							<a href="/list?directory={{.Name}}">View</a>
+						{{else}}
+							<a href="/download?filename={{.Name}}">Download</a>
+						{{end}}
+					</td>
 				</tr>
 			{{end}}
 		</tbody>
