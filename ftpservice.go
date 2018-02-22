@@ -216,11 +216,13 @@ func (drv *ftpDriver) ChmodFile(cc server.ClientContext, path string, mode os.Fi
 }
 
 func (drv *ftpDriver) DeleteFile(cc server.ClientContext, path string) error {
-	return os.Remove(drv.path(cc, path))
+	// Do not allow removing, causes issues with clients doing temp files
+	return nil
 }
 
 func (drv *ftpDriver) RenameFile(cc server.ClientContext, from, to string) error {
-	return os.Rename(drv.path(cc, from), drv.path(cc, to))
+	// Do not allow renaming, causes issues with clients doing temp files
+	return nil
 }
 
 func (drv *ftpDriver) GetSettings() *server.Settings {
