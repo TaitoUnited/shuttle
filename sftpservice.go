@@ -227,7 +227,7 @@ func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
 			sftp.Chroot(s.chroot),
 			sftp.NotifyWrite(s.incoming),
 			sftp.AsUser(serverConn.User()),
-			sftp.DisableRemove(),
+			// sftp.DisableRemove(),
 		}
 
 		server, err := sftp.NewServer(channel, serverOptions...)
