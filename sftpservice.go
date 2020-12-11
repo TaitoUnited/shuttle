@@ -135,6 +135,8 @@ func (s *SftpService) WriteNotifications() chan WriteNotification {
 
 func (s *SftpService) accept(config *ssh.ServerConfig) {
 	for {
+		log.Info("New connection")
+
 		newConn, err := s.listener.Accept()
 		if err != nil {
 			select {
@@ -180,6 +182,8 @@ func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
 	}
 
 	defer serverConn.Close()
+
+	log.Info("Handshake complete")
 
 	// The incoming Request channel must be serviced.
 	go ssh.DiscardRequests(reqs)
@@ -256,6 +260,8 @@ func (s *SftpService) handleClient(conn net.Conn, config *ssh.ServerConfig) {
 	s.serversMutex.Lock()
 	delete(s.servers, serverID)
 	s.serversMutex.Unlock()
+
+	log.Info("Connection closed")
 }
 
 func (s *SftpService) watchIncoming() {
