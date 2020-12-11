@@ -84,6 +84,8 @@ func (s Shuttle) Send() error {
 	io.Copy(ioutil.Discard, response.Body)
 	defer response.Body.Close()
 
+	time.Sleep(3 * time.Second)
+
 	if response.StatusCode < 200 || response.StatusCode > 299 {
 		// Move the file to a failed folder
 		if err := os.Rename(s.Path, filepath.Join(filepath.Dir(s.Path), "failed", filepath.Base(s.Path))); err != nil {
