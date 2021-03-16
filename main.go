@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	var configPath, shuttlesPath, ftpHost, sftpHost, webHost string
+	var configPath, shuttlesPath, privateKeyPath, certificatePublicPath, certificatePrivatePath, ftpHost, sftpHost, webHost string
 	var retry, workers, ftpPort, sftpPort, webPort, webInsecurePort int
 	var webAllowInsecure bool
 
@@ -23,6 +23,9 @@ func main() {
 	flag.IntVar(&retry, "retry", 5, "Delay before restarting error-inducing shuttles")
 	flag.IntVar(&workers, "workers", 5, "Concurrent uploads")
 
+	flag.StringVar(&privateKeyPath, "private-key", "", "Path to the private key file")
+	flag.StringVar(&certificatePublicPath, "certificate-public", "", "Path to the certificate file")
+	flag.StringVar(&certificatePrivatePath, "certificate-private", "", "Path to the certificate key file")
 	flag.StringVar(&ftpHost, "ftp-host", "0.0.0.0", "Host that the FTP service will listen on")
 	flag.StringVar(&sftpHost, "sftp-host", "0.0.0.0", "Host that the SFTP service will listen on")
 	flag.StringVar(&webHost, "web-host", "0.0.0.0", "Host that the web service will listen on")
@@ -38,7 +41,7 @@ func main() {
 	})
 
 	missionControl := NewMissionControl(retry, shuttlesPath)
-	if err := missionControl.Reload(configPath, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort, webAllowInsecure); err != nil {
+	if err := missionControl.Reload(configPath, privateKeyPath, certificatePublicPath, certificatePrivatePath, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort, webAllowInsecure); err != nil {
 		logger.WithFields(log.Fields{
 			"err": err,
 		}).Fatal("Failed to load configuration")
@@ -88,7 +91,7 @@ func main() {
 		if sig == syscall.SIGHUP {
 			logger.Info("Reloading configuration")
 
-			if err := missionControl.Reload(configPath, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort); err != nil {
+			if err := missionControl.Reload(configPath, privateKeyPath, certificatePublicPath, certificatePrivatePath, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort, webAllowInsecure); err != nil {
 				logger.WithFields(log.Fields{
 					"err": err,
 				}).Error("Failed to reload configuration")

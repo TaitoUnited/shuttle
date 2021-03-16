@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"encoding/json"
+	"io/ioutil"
 	"os"
 
 	"golang.org/x/crypto/ssh"
@@ -30,7 +31,7 @@ type Configuration struct {
 }
 
 // NewConfiguration returns a new configuration struct.
-func NewConfiguration(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int, webHost string, webPort int, webInsecurePort int, webAllowInsecure bool) (Configuration, error) {
+func NewConfiguration(path string, privateKeyPath string, certificatePublicPath string, certificatePrivatePath string, ftpHost string, ftpPort int, sftpHost string, sftpPort int, webHost string, webPort int, webInsecurePort int, webAllowInsecure bool) (Configuration, error) {
 	var configuration Configuration
 
 	handle, err := os.Open(path)
@@ -43,14 +44,30 @@ func NewConfiguration(path string, ftpHost string, ftpPort int, sftpHost string,
 		return configuration, err
 	}
 
-	private, err := ssh.ParsePrivateKey([]byte(configuration.RawPrivateKey))
-	if err != nil {
-		return configuration, err
+	var private []byte
+	if privateKeyPath != "" {
+		private, err = ioutil.ReadFile(privateKeyPath)
+		if err != nil {
+			return configuration, err
+		}
+	} else {
+		private, err = ssh.ParsePrivateKey([]byte(configuration.RawPrivateKey))
+		if err != nil {
+			return configuration, err
+		}
 	}
 
-	certificate, err := tls.X509KeyPair([]byte(configuration.RawCertificatePublicKey), []byte(configuration.RawCertificatePrivateKey))
-	if err != nil {
-		return configuration, err
+	var certificate tls.Certificate
+	if certificatePublicPath != "" && certificatePrivatePath != "" {
+		certificate, err = tls.LoadX509KeyPair(certificatePublicPath, certificatePrivatePath)
+		if err != nil {
+			return configuration, err
+		}
+	} else {
+		certificate, err = tls.X509KeyPair([]byte(configuration.RawCertificatePublicKey), []byte(configuration.RawCertificatePrivateKey))
+		if err != nil {
+			return configuration, err
+		}
 	}
 
 	configuration.PrivateKey = private

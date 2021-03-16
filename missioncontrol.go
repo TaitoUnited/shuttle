@@ -102,8 +102,8 @@ func (mc *MissionControl) WatchWriteNotifications(writeNotifications chan WriteN
 	}
 }
 
-func (mc *MissionControl) Reload(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int, webHost string, webPort int, webInsecurePort int, webAllowInsecure bool) error {
-	configuration, err := NewConfiguration(path, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort, webAllowInsecure)
+func (mc *MissionControl) Reload(path string, privateKeyPath string, certificatePublicPath string, certificatePrivatePath string, ftpHost string, ftpPort int, sftpHost string, sftpPort int, webHost string, webPort int, webInsecurePort int, webAllowInsecure bool) error {
+	configuration, err := NewConfiguration(path, privateKeyPath, certificatePublicPath, certificatePrivatePath, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort, webAllowInsecure)
 	if err != nil {
 		return err
 	}
