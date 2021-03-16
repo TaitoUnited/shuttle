@@ -14,6 +14,7 @@ import (
 func main() {
 	var configPath, shuttlesPath, ftpHost, sftpHost, webHost string
 	var retry, workers, ftpPort, sftpPort, webPort, webInsecurePort int
+	var webAllowInsecure bool
 
 	start := time.Now()
 
@@ -29,6 +30,7 @@ func main() {
 	flag.IntVar(&sftpPort, "sftp-port", 2002, "Port that the SFTP service will listen on")
 	flag.IntVar(&webPort, "web-port", 8081, "Port that the HTTPS web service will listen on")
 	flag.IntVar(&webInsecurePort, "web-insecure-port", 8080, "Port that the HTTP web service will listen on")
+	flag.BoolVar(&webAllowInsecure, "web-allow-insecure", false, "Allow access to web service over insecure connection")
 	flag.Parse()
 
 	logger := log.WithFields(log.Fields{
@@ -36,7 +38,7 @@ func main() {
 	})
 
 	missionControl := NewMissionControl(retry, shuttlesPath)
-	if err := missionControl.Reload(configPath, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort); err != nil {
+	if err := missionControl.Reload(configPath, ftpHost, ftpPort, sftpHost, sftpPort, webHost, webPort, webInsecurePort, webAllowInsecure); err != nil {
 		logger.WithFields(log.Fields{
 			"err": err,
 		}).Fatal("Failed to load configuration")

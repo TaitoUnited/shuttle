@@ -22,6 +22,7 @@ type WebService struct {
 	host               string
 	port               int
 	insecurePort       int
+	allowInsecure      bool
 	chroot             string
 	certificate        tls.Certificate
 	writeNotifications chan WriteNotification
@@ -38,12 +39,13 @@ type userFile struct {
 }
 
 // NewWebService creates a new WebService.
-func NewWebService(host string, port int, insecurePort int, chroot string, certificate tls.Certificate, routes []Route) *WebService {
+func NewWebService(host string, port int, insecurePort int, allowInsecure bool, chroot string, certificate tls.Certificate, routes []Route) *WebService {
 	return &WebService{
 		routes:             routes,
 		host:               host,
 		port:               port,
 		insecurePort:       insecurePort,
+		allowInsecure:      allowInsecure,
 		chroot:             chroot,
 		certificate:        certificate,
 		writeNotifications: make(chan WriteNotification, 100),
@@ -84,9 +86,16 @@ func (s *WebService) Start() error {
 		TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
 	}
 
+	var insecureHandler http.Handler
+	if s.allowInsecure {
+		insecureHandler = mux
+	} else {
+		insecureHandler = http.HandlerFunc(s.httpRedirect)
+	}
+
 	s.insecureServer = &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", s.host, s.insecurePort),
-		Handler: http.HandlerFunc(s.httpRedirect),
+		Handler: insecureHandler,
 	}
 
 	go s.server.ListenAndServeTLS("", "")

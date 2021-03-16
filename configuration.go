@@ -26,10 +26,11 @@ type Configuration struct {
 	WebHost                  string
 	WebPort                  int
 	WebInsecurePort          int
+	WebAllowInsecure         bool
 }
 
 // NewConfiguration returns a new configuration struct.
-func NewConfiguration(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int, webHost string, webPort int, webInsecurePort int) (Configuration, error) {
+func NewConfiguration(path string, ftpHost string, ftpPort int, sftpHost string, sftpPort int, webHost string, webPort int, webInsecurePort int, webAllowInsecure bool) (Configuration, error) {
 	var configuration Configuration
 
 	handle, err := os.Open(path)
@@ -61,6 +62,7 @@ func NewConfiguration(path string, ftpHost string, ftpPort int, sftpHost string,
 	configuration.WebHost = webHost
 	configuration.WebPort = webPort
 	configuration.WebInsecurePort = webInsecurePort
+	configuration.WebAllowInsecure = webAllowInsecure
 
 	return configuration, nil
 }
