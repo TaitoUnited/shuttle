@@ -44,9 +44,14 @@ func NewConfiguration(path string, privateKeyPath string, certificatePublicPath 
 		return configuration, err
 	}
 
-	var private []byte
+	var private ssh.Signer
 	if privateKeyPath != "" {
-		private, err = ioutil.ReadFile(privateKeyPath)
+		rawPrivate, err := ioutil.ReadFile(privateKeyPath)
+		if err != nil {
+			return configuration, err
+		}
+
+		private, err = ssh.ParsePrivateKey(rawPrivate)
 		if err != nil {
 			return configuration, err
 		}
